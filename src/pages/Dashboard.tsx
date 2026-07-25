@@ -103,7 +103,11 @@ export function Dashboard() {
       const sorted = [...result].sort((a, b) => a.totalCostOffset - b.totalCostOffset).slice(0, MAX_ADVICE_OPTIONS)
       setAdviceOptions(sorted)
       setSelectedAdviceIndex(sorted.length > 0 ? 0 : null)
-      setMobileView('map')
+      if (sorted.length === 0) {
+        setRouteError('No route found for the given origin and destination.')
+      } else {
+        setMobileView('map')
+      }
     } catch (err) {
       setRouteError(err instanceof Error ? err.message : 'Failed to calculate route')
     } finally {
