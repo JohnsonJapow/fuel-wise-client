@@ -175,14 +175,25 @@ function LoadedMapView({ apiKey, ...props }: MapViewProps & { apiKey: string }) 
               <p className="text-slate-500 mb-1">{selectedOption.station.formattedAddress}</p>
               <p className="font-medium text-emerald-600 mb-1">€{selectedOption.fuelPricePerLiter.toFixed(3)} / L</p>
               {selectedOption.station.id && (
-                <a
-                  href={`https://www.google.com/maps/place/?q=place_id:${selectedOption.station.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs font-medium text-blue-600 hover:underline"
-                >
-                  View on Google Maps
-                </a>
+                <>
+                  <a
+                    href={`https://www.google.com/maps/place/?q=place_id:${selectedOption.station.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-medium text-blue-600 hover:underline"
+                  >
+                    View station on Google Maps
+                  </a>
+                  <br></br>
+                  <a
+                    href={selectedOption.routingSummary.directionsUri}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-medium text-blue-600 hover:underline"
+                  >
+                    View route on Google Maps
+                  </a>
+                </>
               )}
             </div>
           </InfoWindow>
