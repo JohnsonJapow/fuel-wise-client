@@ -27,6 +27,14 @@ export interface LoginResponse {
   user: UserProfile
 }
 
+export interface UpdateProfileInput {
+  vehicleType: string
+  fuelEfficiency: number
+  tankCapacity: number
+}
+
+export type UpdateProfileResponse = UserProfile
+
 export interface AuthContextValue {
   user: UserProfile | null
   token: string | null
@@ -35,5 +43,5 @@ export interface AuthContextValue {
   register: (input: RegisterInput) => Promise<void>
   login: (input: LoginInput) => Promise<void>
   logout: () => void
-  updateProfile: (updates: Partial<Pick<UserProfile, 'fuelEfficiency' | 'tankCapacity'>>) => void
+  updateProfile: (updates: UpdateProfileInput) => Promise<void>
 }

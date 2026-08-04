@@ -1,5 +1,12 @@
 import type { RouteAdviceRequest, RouteAdviceResponse } from '../types/api'
-import type { LoginInput, LoginResponse, RegisterInput, RegisterResponse } from '../types/auth'
+import type {
+  LoginInput,
+  LoginResponse,
+  RegisterInput,
+  RegisterResponse,
+  UpdateProfileInput,
+  UpdateProfileResponse,
+} from '../types/auth'
 import { getStoredToken } from '../utils/authStorage'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
@@ -68,6 +75,19 @@ export async function loginUser(input: LoginInput): Promise<LoginResponse> {
     body: JSON.stringify(input),
   })
   return handleResponse<LoginResponse>(res)
+}
+
+export async function updateProfile(input: UpdateProfileInput): Promise<UpdateProfileResponse> {
+  const token = getStoredToken()
+  const res = await fetch(`${API_BASE_URL}/api/v1/auth/update`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(input),
+  })
+  return handleResponse<UpdateProfileResponse>(res)
 }
 
 export { ApiError }

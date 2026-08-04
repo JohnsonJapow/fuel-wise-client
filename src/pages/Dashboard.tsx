@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { List, MapIcon } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { MapView } from '../components/MapView'
 import { Sidebar } from '../components/Sidebar'
-import { fetchRouteAdvice } from '../services/api'
+import { ApiError, fetchRouteAdvice } from '../services/api'
 import type { LatLng, RouteAdviceOption } from '../types/api'
 
 const DEFAULT_CENTER: LatLng = { lat: 52.52, lng: 13.405 }
@@ -17,11 +18,14 @@ function parseCoord(value: string): number | null {
 
 export function Dashboard() {
   const { user, logout, updateProfile } = useAuth()
+  const navigate = useNavigate()
 
   const [tankOverride, setTankOverride] = useState(String(user?.tankCapacity ?? ''))
   const [fuelEfficiencyOverride, setFuelEfficiencyOverride] = useState(String(user?.fuelEfficiency ?? ''))
   const [currentFuel, setCurrentFuel] = useState('')
   const [profileSaved, setProfileSaved] = useState(false)
+  const [profileError, setProfileError] = useState<string | null>(null)
+  const [profileSaving, setProfileSaving] = useState(false)
 
   useEffect(() => {
     if (!user) return
@@ -73,13 +77,30 @@ export function Dashboard() {
     }
   }
 
-  function handleSaveProfileOverrides() {
+  async function handleSaveProfileOverrides() {
+    if (!user) return
     const tankCapacity = Number(tankOverride)
     const fuelEfficiency = Number(fuelEfficiencyOverride)
-    if (!Number.isFinite(tankCapacity) || !Number.isFinite(fuelEfficiency)) return
-    updateProfile({ tankCapacity, fuelEfficiency })
-    setProfileSaved(true)
-    setTimeout(() => setProfileSaved(false), 2000)
+    if (!Number.isFinite(tankCapacity) || tankCapacity <= 0 || !Number.isFinite(fuelEfficiency) || fuelEfficiency <= 0) {
+      setProfileError('Tank capacity and fuel efficiency must be positive numbers.')
+      return
+    }
+    setProfileSaving(true)
+    setProfileError(null)
+    try {
+      await updateProfile({ vehicleType: user.vehicleType, fuelEfficiency, tankCapacity })
+      setProfileSaved(true)
+      setTimeout(() => setProfileSaved(false), 2000)
+    } catch (err) {
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        logout()
+        navigate('/login', { replace: true })
+        return
+      }
+      setProfileError(err instanceof Error ? err.message : 'Failed to update profile')
+    } finally {
+      setProfileSaving(false)
+    }
   }
 
   async function handleCalculateRoute() {
@@ -109,6 +130,11 @@ export function Dashboard() {
         setMobileView('map')
       }
     } catch (err) {
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        logout()
+        navigate('/login', { replace: true })
+        return
+      }
       setRouteError(err instanceof Error ? err.message : 'Failed to calculate route')
     } finally {
       setRouteLoading(false)
@@ -168,6 +194,8 @@ export function Dashboard() {
           onCurrentFuelChange={setCurrentFuel}
           onSaveProfileOverrides={handleSaveProfileOverrides}
           profileSaved={profileSaved}
+          profileSaving={profileSaving}
+          profileError={profileError}
           fuelType={fuelType}
           onFuelTypeChange={setFuelType}
           originLat={originLat}

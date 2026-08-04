@@ -5,7 +5,7 @@ import { formatDistanceKm, formatDuration } from '../utils/routeAdvice'
 
 type PickMode = 'origin' | 'destination' | null
 
-const FUEL_TYPES = ['SP95', 'DIESEL']
+const FUEL_TYPES = ['SP91', 'SP91_E10', 'SP92', 'SP95_E10', 'SP98', 'SP99', 'SP100', 'DIESEL', 'TRUCK_DIESEL', 'BIODIESEL', 'REGULAR_UNLEADED', 'MIDGRADE', 'PREMIUM', 'LPG', 'E80', 'E85', 'METHANE']
 
 interface SidebarProps {
   user: UserProfile
@@ -19,6 +19,8 @@ interface SidebarProps {
   onCurrentFuelChange: (value: string) => void
   onSaveProfileOverrides: () => void
   profileSaved: boolean
+  profileSaving: boolean
+  profileError: string | null
 
   fuelType: string
   onFuelTypeChange: (value: string) => void
@@ -57,6 +59,8 @@ export function Sidebar({
   onCurrentFuelChange,
   onSaveProfileOverrides,
   profileSaved,
+  profileSaving,
+  profileError,
   fuelType,
   onFuelTypeChange,
   originLat,
@@ -141,11 +145,13 @@ export function Sidebar({
         <button
           type="button"
           onClick={onSaveProfileOverrides}
-          className="mt-3 flex items-center gap-1.5 text-xs font-medium text-emerald-600 hover:text-emerald-700"
+          disabled={profileSaving}
+          className="mt-3 flex items-center gap-1.5 text-xs font-medium text-emerald-600 hover:text-emerald-700 disabled:opacity-50"
         >
-          <Save size={14} /> Save to profile
+          <Save size={14} /> {profileSaving ? 'Saving...' : 'Save to profile'}
         </button>
         {profileSaved && <p className="mt-1 text-xs text-emerald-600">Profile updated.</p>}
+        {profileError && <p className="mt-1 text-xs text-red-600">{profileError}</p>}
       </section>
 
       <section className="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
@@ -173,9 +179,8 @@ export function Sidebar({
               <button
                 type="button"
                 onClick={() => onTogglePickMode('origin')}
-                className={`flex items-center gap-1 text-xs font-medium ${
-                  pickMode === 'origin' ? 'text-emerald-600' : 'text-slate-500 hover:text-emerald-600'
-                }`}
+                className={`flex items-center gap-1 text-xs font-medium ${pickMode === 'origin' ? 'text-emerald-600' : 'text-slate-500 hover:text-emerald-600'
+                  }`}
               >
                 <Crosshair size={12} /> Pick on map
               </button>
@@ -205,9 +210,8 @@ export function Sidebar({
               <button
                 type="button"
                 onClick={() => onTogglePickMode('destination')}
-                className={`flex items-center gap-1 text-xs font-medium ${
-                  pickMode === 'destination' ? 'text-emerald-600' : 'text-slate-500 hover:text-emerald-600'
-                }`}
+                className={`flex items-center gap-1 text-xs font-medium ${pickMode === 'destination' ? 'text-emerald-600' : 'text-slate-500 hover:text-emerald-600'
+                  }`}
               >
                 <Crosshair size={12} /> Pick on map
               </button>
@@ -258,11 +262,10 @@ export function Sidebar({
               <button
                 type="button"
                 onClick={() => onSelectAdvice(index === selectedAdviceIndex ? null : index)}
-                className={`w-full text-left rounded-md border px-3 py-2 transition-colors ${
-                  index === selectedAdviceIndex
-                    ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
-                    : 'border-slate-200 dark:border-slate-700 hover:border-emerald-400'
-                }`}
+                className={`w-full text-left rounded-md border px-3 py-2 transition-colors ${index === selectedAdviceIndex
+                  ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
+                  : 'border-slate-200 dark:border-slate-700 hover:border-emerald-400'
+                  }`}
               >
                 <p className="text-sm font-medium text-slate-900 dark:text-white">{option.station.displayName.text}</p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{option.station.formattedAddress}</p>
@@ -296,11 +299,10 @@ export function Sidebar({
               type="button"
               key={index}
               onClick={() => onSelectAdvice(index === selectedAdviceIndex ? null : index)}
-              className={`w-full text-left rounded-md bg-emerald-50 dark:bg-emerald-900/20 border px-3 py-3 transition-colors ${
-                index === selectedAdviceIndex
-                  ? 'border-emerald-500 ring-1 ring-emerald-500'
-                  : 'border-emerald-200 dark:border-emerald-800 hover:border-emerald-400'
-              }`}
+              className={`w-full text-left rounded-md bg-emerald-50 dark:bg-emerald-900/20 border px-3 py-3 transition-colors ${index === selectedAdviceIndex
+                ? 'border-emerald-500 ring-1 ring-emerald-500'
+                : 'border-emerald-200 dark:border-emerald-800 hover:border-emerald-400'
+                }`}
             >
               <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
                 {option.station.displayName.text}

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import type { AuthContextValue, LoginInput, RegisterInput, UserProfile } from '../types/auth'
-import { loginUser, registerUser } from '../services/api'
+import type { AuthContextValue, LoginInput, RegisterInput, UpdateProfileInput, UserProfile } from '../types/auth'
+import { loginUser, registerUser, updateProfile as updateProfileApi } from '../services/api'
 import { clearStoredAuth, getStoredToken, getStoredUser, setStoredAuth } from '../utils/authStorage'
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -40,13 +40,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }
 
-  function updateProfile(updates: Partial<Pick<UserProfile, 'fuelEfficiency' | 'tankCapacity'>>) {
-    setUser((prev) => {
-      if (!prev) return prev
-      const updated = { ...prev, ...updates }
-      if (token) setStoredAuth(token, updated)
-      return updated
-    })
+  async function updateProfile(updates: UpdateProfileInput) {
+    const updated = await updateProfileApi(updates)
+    setUser(updated)
+    if (token) setStoredAuth(token, updated)
   }
 
   const value: AuthContextValue = {
