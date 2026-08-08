@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { DirectionsRenderer, GoogleMap, InfoWindow, Marker, useJsApiLoader } from '@react-google-maps/api'
-import type { LatLng, RouteAdviceOption } from '../types/api'
-import { getStationCoordinate } from '../utils/routeAdvice'
+import type { LatLng, MultiStopPlan } from '../types/api'
+import { currencySymbol, getMultiStopCoordinate, getStopCurrencyCode } from '../utils/routeAdvice'
 
 const containerStyle: React.CSSProperties = { width: '100%', height: '100%' }
 
@@ -9,21 +9,18 @@ const DEFAULT_CENTER: LatLng = { lat: 52.52, lng: 13.405 }
 
 const ORIGIN_ICON = 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png'
 const DEST_ICON = 'https://maps.google.com/mapfiles/ms/icons/purple-dot.png'
-const CHEAPEST_ICON = 'https://maps.google.com/mapfiles/ms/icons/green-dot.png'
 const STATION_ICON = 'https://maps.google.com/mapfiles/ms/icons/red-dot.png'
 
 type PickMode = 'origin' | 'destination' | null
 
 interface MapViewProps {
   center: LatLng
-  adviceOptions: RouteAdviceOption[]
-  cheapestAdviceIndex: number | null
   origin: LatLng | null
   destination: LatLng | null
   pickMode: PickMode
   onMapClick: (loc: LatLng) => void
-  selectedAdviceIndex: number | null
-  onSelectAdvice: (index: number | null) => void
+  multiStopPlans: MultiStopPlan[]
+  selectedPlanIndex: number | null
 }
 
 function MapMessage({ children, tone = 'neutral' }: { children: React.ReactNode; tone?: 'neutral' | 'error' }) {
@@ -39,14 +36,12 @@ function MapMessage({ children, tone = 'neutral' }: { children: React.ReactNode;
 function LoadedMapView({ apiKey, ...props }: MapViewProps & { apiKey: string }) {
   const {
     center,
-    adviceOptions,
-    cheapestAdviceIndex,
     origin,
     destination,
     pickMode,
     onMapClick,
-    selectedAdviceIndex,
-    onSelectAdvice,
+    multiStopPlans,
+    selectedPlanIndex,
   } = props
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'fuelwise-google-map',
@@ -63,35 +58,33 @@ function LoadedMapView({ apiKey, ...props }: MapViewProps & { apiKey: string }) 
 
   const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null)
   const [directionsError, setDirectionsError] = useState<string | null>(null)
-  const [infoWindowOpen, setInfoWindowOpen] = useState(false)
-
-  // Reopen the InfoWindow whenever a new station is selected, but leave it
-  // closeable independently so dismissing it doesn't clear the route below.
-  useEffect(() => {
-    setInfoWindowOpen(selectedAdviceIndex != null)
-  }, [selectedAdviceIndex])
-
-  const selectedOptionForRoute = selectedAdviceIndex != null ? adviceOptions[selectedAdviceIndex] : null
+  const [selectedStopIndex, setSelectedStopIndex] = useState<number | null>(null)
 
   useEffect(() => {
-    if (!isLoaded || !selectedOptionForRoute || !origin || !destination) {
+    setSelectedStopIndex(null)
+  }, [selectedPlanIndex])
+
+  const selectedPlanForRoute = selectedPlanIndex != null ? multiStopPlans[selectedPlanIndex] : null
+
+  useEffect(() => {
+    if (!isLoaded || !origin || !destination || !selectedPlanForRoute) {
       setDirections(null)
       setDirectionsError(null)
       return
     }
-    const waypoint = getStationCoordinate(selectedOptionForRoute)
-    if (!waypoint) {
-      setDirections(null)
-      setDirectionsError(null)
-      return
-    }
+
+    const waypoints: google.maps.DirectionsWaypoint[] = selectedPlanForRoute.stops
+      .map((stop) => getMultiStopCoordinate(stop))
+      .filter((loc): loc is LatLng => loc != null)
+      .map((location) => ({ location, stopover: true }))
+
     let cancelled = false
     const directionsService = new google.maps.DirectionsService()
     directionsService.route(
       {
         origin,
         destination,
-        waypoints: [{ location: waypoint, stopover: true }],
+        waypoints,
         travelMode: google.maps.TravelMode.DRIVING,
       },
       (result, status) => {
@@ -113,7 +106,7 @@ function LoadedMapView({ apiKey, ...props }: MapViewProps & { apiKey: string }) 
     return () => {
       cancelled = true
     }
-  }, [isLoaded, selectedOptionForRoute, origin, destination])
+  }, [isLoaded, selectedPlanForRoute, origin, destination])
 
   if (loadError) {
     return <MapMessage tone="error">Failed to load Google Maps. Check your API key and network.</MapMessage>
@@ -123,8 +116,9 @@ function LoadedMapView({ apiKey, ...props }: MapViewProps & { apiKey: string }) 
     return <MapMessage>Loading map…</MapMessage>
   }
 
-  const selectedOption = selectedOptionForRoute
-  const selectedCoordinate = selectedOption ? getStationCoordinate(selectedOption) : null
+  const selectedStop =
+    selectedPlanForRoute && selectedStopIndex != null ? selectedPlanForRoute.stops[selectedStopIndex] : null
+  const selectedStopCoordinate = selectedStop ? getMultiStopCoordinate(selectedStop) : null
 
   return (
     <div className="relative w-full h-full">
@@ -148,18 +142,19 @@ function LoadedMapView({ apiKey, ...props }: MapViewProps & { apiKey: string }) 
         {origin && <Marker position={origin} icon={ORIGIN_ICON} title="Origin" />}
         {destination && <Marker position={destination} icon={DEST_ICON} title="Destination" />}
 
-        {adviceOptions.map((option, index) => {
-          const position = getStationCoordinate(option)
-          if (!position) return null
-          return (
-            <Marker
-              key={index}
-              position={position}
-              icon={index === cheapestAdviceIndex ? CHEAPEST_ICON : STATION_ICON}
-              onClick={() => onSelectAdvice(index)}
-            />
-          )
-        })}
+        {selectedPlanForRoute?.stops.map((stop, index) => {
+            const position = getMultiStopCoordinate(stop)
+            if (!position) return null
+            return (
+              <Marker
+                key={index}
+                position={position}
+                icon={STATION_ICON}
+                label={{ text: String(index + 1), color: '#ffffff', fontSize: '11px', fontWeight: 'bold' }}
+                onClick={() => setSelectedStopIndex(index)}
+              />
+            )
+          })}
 
         {directions && (
           <DirectionsRenderer
@@ -168,32 +163,24 @@ function LoadedMapView({ apiKey, ...props }: MapViewProps & { apiKey: string }) 
           />
         )}
 
-        {selectedOption && selectedCoordinate && infoWindowOpen && (
-          <InfoWindow position={selectedCoordinate} onCloseClick={() => setInfoWindowOpen(false)}>
+        {selectedStop && selectedStopCoordinate && (
+          <InfoWindow position={selectedStopCoordinate} onCloseClick={() => setSelectedStopIndex(null)}>
             <div className="text-sm text-slate-800 min-w-40">
-              <p className="font-semibold">{selectedOption.station.displayName.text}</p>
-              <p className="text-slate-500 mb-1">{selectedOption.station.formattedAddress}</p>
-              <p className="font-medium text-emerald-600 mb-1">€{selectedOption.fuelPricePerLiter.toFixed(3)} / L</p>
-              {selectedOption.station.id && (
-                <>
-                  <a
-                    href={`https://www.google.com/maps/place/?q=place_id:${selectedOption.station.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs font-medium text-blue-600 hover:underline"
-                  >
-                    View station on Google Maps
-                  </a>
-                  <br></br>
-                  <a
-                    href={selectedOption.routingSummary.directionsUri}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs font-medium text-blue-600 hover:underline"
-                  >
-                    View route on Google Maps
-                  </a>
-                </>
+              <p className="font-semibold">{selectedStop.station.displayName.text}</p>
+              <p className="text-slate-500 mb-1">{selectedStop.station.formattedAddress}</p>
+              <p className="font-medium text-emerald-600 mb-1">
+                {currencySymbol(getStopCurrencyCode(selectedStop))}
+                {selectedStop.pricePerLiter.toFixed(3)} / L · {selectedStop.litersPurchased.toFixed(1)} L
+              </p>
+              {selectedStop.station.id && (
+                <a
+                  href={`https://www.google.com/maps/place/?q=place_id:${selectedStop.station.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-medium text-blue-600 hover:underline"
+                >
+                  View station on Google Maps
+                </a>
               )}
             </div>
           </InfoWindow>

@@ -4,8 +4,8 @@ import { List, MapIcon } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { MapView } from '../components/MapView'
 import { Sidebar } from '../components/Sidebar'
-import { ApiError, fetchRouteAdvice } from '../services/api'
-import type { LatLng, RouteAdviceOption } from '../types/api'
+import { ApiError, fetchMultiStopRouteAdvice } from '../services/api'
+import type { LatLng, MultiStopPlan } from '../types/api'
 
 const DEFAULT_CENTER: LatLng = { lat: 52.52, lng: 13.405 }
 const MAX_ADVICE_OPTIONS = 3
@@ -34,7 +34,10 @@ export function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- resync overrides only when switching users, not on every profile edit
   }, [user?.id])
 
-  const [fuelType, setFuelType] = useState('SP95')
+  const [fuelType, setFuelType] = useState('REGULAR_UNLEADED')
+
+  const [segmentDistanceMeters, setSegmentDistanceMeters] = useState('')
+  const [locationBiasRadiusMeters, setLocationBiasRadiusMeters] = useState('')
 
   const [originLat, setOriginLat] = useState('')
   const [originLng, setOriginLng] = useState('')
@@ -44,8 +47,9 @@ export function Dashboard() {
 
   const [routeLoading, setRouteLoading] = useState(false)
   const [routeError, setRouteError] = useState<string | null>(null)
-  const [adviceOptions, setAdviceOptions] = useState<RouteAdviceOption[]>([])
-  const [selectedAdviceIndex, setSelectedAdviceIndex] = useState<number | null>(null)
+
+  const [multiStopPlans, setMultiStopPlans] = useState<MultiStopPlan[]>([])
+  const [selectedPlanIndex, setSelectedPlanIndex] = useState<number | null>(null)
 
   const [mobileView, setMobileView] = useState<'sidebar' | 'map'>('sidebar')
 
@@ -94,7 +98,7 @@ export function Dashboard() {
     } catch (err) {
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
         logout()
-        navigate('/login', { replace: true })
+        navigate('/login', { replace: true, state: { sessionExpired: true } })
         return
       }
       setProfileError(err instanceof Error ? err.message : 'Failed to update profile')
@@ -107,11 +111,14 @@ export function Dashboard() {
     if (!origin || !destination || !currentFuelValid) return
     setRouteLoading(true)
     setRouteError(null)
+    const tankCapacityLiters = tankOverride.trim() !== '' ? Number(tankOverride) : undefined
+    const fuelEfficiencyL100km = fuelEfficiencyOverride.trim() !== '' ? Number(fuelEfficiencyOverride) : undefined
+    const fuelEfficiencyKml = fuelEfficiencyL100km != null ? 100 / fuelEfficiencyL100km : undefined
+    const currentFuelLiters = currentFuel.trim() !== '' ? Number(currentFuel) : undefined
     try {
-      const tankCapacityLiters = tankOverride.trim() !== '' ? Number(tankOverride) : undefined
-      const fuelEfficiencyKml = fuelEfficiencyOverride.trim() !== '' ? Number(fuelEfficiencyOverride) : undefined
-      const currentFuelLiters = currentFuel.trim() !== '' ? Number(currentFuel) : undefined
-      const result = await fetchRouteAdvice({
+      const segmentDistance = segmentDistanceMeters.trim() !== '' ? Number(segmentDistanceMeters) : undefined
+      const locationBiasRadius = locationBiasRadiusMeters.trim() !== '' ? Number(locationBiasRadiusMeters) : undefined
+      const result = await fetchMultiStopRouteAdvice({
         originLat: origin.lat,
         originLng: origin.lng,
         destLat: destination.lat,
@@ -120,19 +127,41 @@ export function Dashboard() {
         tankCapacityLiters,
         currentFuelLiters,
         fuelEfficiencyKml,
+        segmentDistanceMeters: segmentDistance,
+        locationBiasRadiusMeters: locationBiasRadius,
       })
-      const sorted = [...result].sort((a, b) => a.totalCostOffset - b.totalCostOffset).slice(0, MAX_ADVICE_OPTIONS)
-      setAdviceOptions(sorted)
-      setSelectedAdviceIndex(sorted.length > 0 ? 0 : null)
+      const sorted = [...result].sort((a, b) => a.totalCost - b.totalCost).slice(0, MAX_ADVICE_OPTIONS)
+      setMultiStopPlans(sorted)
+      setSelectedPlanIndex(sorted.length > 0 ? 0 : null)
       if (sorted.length === 0) {
         setRouteError('No route found for the given origin and destination.')
       } else {
         setMobileView('map')
       }
+
+      // Deprecated: single-stop /routes/advice is superseded by fetchMultiStopRouteAdvice (see 3.5 in claude.md).
+      // const result = await fetchRouteAdvice({
+      //   originLat: origin.lat,
+      //   originLng: origin.lng,
+      //   destLat: destination.lat,
+      //   destLng: destination.lng,
+      //   fuelType,
+      //   tankCapacityLiters,
+      //   currentFuelLiters,
+      //   fuelEfficiencyKml,
+      // })
+      // const sorted = [...result].sort((a, b) => a.totalCostOffset - b.totalCostOffset).slice(0, MAX_ADVICE_OPTIONS)
+      // setAdviceOptions(sorted)
+      // setSelectedAdviceIndex(sorted.length > 0 ? 0 : null)
+      // if (sorted.length === 0) {
+      //   setRouteError('No route found for the given origin and destination.')
+      // } else {
+      //   setMobileView('map')
+      // }
     } catch (err) {
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
         logout()
-        navigate('/login', { replace: true })
+        navigate('/login', { replace: true, state: { sessionExpired: true } })
         return
       }
       setRouteError(err instanceof Error ? err.message : 'Failed to calculate route')
@@ -141,19 +170,10 @@ export function Dashboard() {
     }
   }
 
-  function handleSelectAdvice(index: number | null) {
-    setSelectedAdviceIndex(index)
+  function handleSelectPlan(index: number | null) {
+    setSelectedPlanIndex(index)
     if (index != null) setMobileView('map')
   }
-
-  const cheapestAdviceIndex = useMemo(() => {
-    if (adviceOptions.length === 0) return null
-    let bestIndex = 0
-    for (let i = 1; i < adviceOptions.length; i++) {
-      if (adviceOptions[i].fuelPricePerLiter < adviceOptions[bestIndex].fuelPricePerLiter) bestIndex = i
-    }
-    return bestIndex
-  }, [adviceOptions])
 
   if (!user) return null
 
@@ -198,6 +218,10 @@ export function Dashboard() {
           profileError={profileError}
           fuelType={fuelType}
           onFuelTypeChange={setFuelType}
+          segmentDistanceMeters={segmentDistanceMeters}
+          onSegmentDistanceMetersChange={setSegmentDistanceMeters}
+          locationBiasRadiusMeters={locationBiasRadiusMeters}
+          onLocationBiasRadiusMetersChange={setLocationBiasRadiusMeters}
           originLat={originLat}
           originLng={originLng}
           destLat={destLat}
@@ -217,24 +241,21 @@ export function Dashboard() {
           onCalculateRoute={handleCalculateRoute}
           routeLoading={routeLoading}
           routeError={routeError}
-          adviceOptions={adviceOptions}
-          cheapestAdviceIndex={cheapestAdviceIndex}
-          selectedAdviceIndex={selectedAdviceIndex}
-          onSelectAdvice={handleSelectAdvice}
+          multiStopPlans={multiStopPlans}
+          selectedPlanIndex={selectedPlanIndex}
+          onSelectPlan={handleSelectPlan}
         />
       </div>
 
       <div className={`w-full md:w-[65%] h-full ${mobileView === 'map' ? 'block' : 'hidden'} md:block`}>
         <MapView
           center={origin ?? DEFAULT_CENTER}
-          adviceOptions={adviceOptions}
-          cheapestAdviceIndex={cheapestAdviceIndex}
           origin={origin}
           destination={destination}
           pickMode={pickMode}
           onMapClick={handleMapClick}
-          selectedAdviceIndex={selectedAdviceIndex}
-          onSelectAdvice={handleSelectAdvice}
+          multiStopPlans={multiStopPlans}
+          selectedPlanIndex={selectedPlanIndex}
         />
       </div>
     </div>

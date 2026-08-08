@@ -1,11 +1,17 @@
-import { Crosshair, Gauge, LogOut, MapPin, Navigation, Route, Save } from 'lucide-react'
-import type { RouteAdviceOption } from '../types/api'
+import { Crosshair, Fuel, Gauge, LogOut, Navigation, Route, Save } from 'lucide-react'
+import type { MultiStopPlan } from '../types/api'
 import type { UserProfile } from '../types/auth'
-import { formatDistanceKm, formatDuration } from '../utils/routeAdvice'
+import {
+  currencySymbol,
+  formatDistanceKm,
+  formatDuration,
+  formatPlanTotalCost,
+  getStopCurrencyCode,
+} from '../utils/routeAdvice'
 
 type PickMode = 'origin' | 'destination' | null
 
-const FUEL_TYPES = ['SP91', 'SP91_E10', 'SP92', 'SP95_E10', 'SP98', 'SP99', 'SP100', 'DIESEL', 'TRUCK_DIESEL', 'BIODIESEL', 'REGULAR_UNLEADED', 'MIDGRADE', 'PREMIUM', 'LPG', 'E80', 'E85', 'METHANE']
+const FUEL_TYPES = ['BIO_DIESEL', 'DIESEL', 'DIESEL_PLUS', 'E100', 'E80', 'E85', 'FUEL_TYPE_UNSPECIFIED', 'LPG', 'METHANE', 'MIDGRADE', 'PREMIUM', 'REGULAR_UNLEADED', 'SP100', 'SP91', 'SP91_E10', 'SP92', 'SP95', 'SP95_E10', 'SP98', 'SP99', 'TRUCK_DIESEL']
 
 interface SidebarProps {
   user: UserProfile
@@ -25,6 +31,11 @@ interface SidebarProps {
   fuelType: string
   onFuelTypeChange: (value: string) => void
 
+  segmentDistanceMeters: string
+  onSegmentDistanceMetersChange: (value: string) => void
+  locationBiasRadiusMeters: string
+  onLocationBiasRadiusMetersChange: (value: string) => void
+
   originLat: string
   originLng: string
   destLat: string
@@ -42,10 +53,9 @@ interface SidebarProps {
   routeLoading: boolean
   routeError: string | null
 
-  adviceOptions: RouteAdviceOption[]
-  cheapestAdviceIndex: number | null
-  selectedAdviceIndex: number | null
-  onSelectAdvice: (index: number | null) => void
+  multiStopPlans: MultiStopPlan[]
+  selectedPlanIndex: number | null
+  onSelectPlan: (index: number | null) => void
 }
 
 export function Sidebar({
@@ -63,6 +73,10 @@ export function Sidebar({
   profileError,
   fuelType,
   onFuelTypeChange,
+  segmentDistanceMeters,
+  onSegmentDistanceMetersChange,
+  locationBiasRadiusMeters,
+  onLocationBiasRadiusMetersChange,
   originLat,
   originLng,
   destLat,
@@ -79,10 +93,9 @@ export function Sidebar({
   onCalculateRoute,
   routeLoading,
   routeError,
-  adviceOptions,
-  cheapestAdviceIndex,
-  selectedAdviceIndex,
-  onSelectAdvice,
+  multiStopPlans,
+  selectedPlanIndex,
+  onSelectPlan,
 }: SidebarProps) {
   return (
     <div className="h-full overflow-y-auto bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800">
@@ -235,6 +248,38 @@ export function Sidebar({
               />
             </div>
           </div>
+          {/* Temporarily hidden: Segment Spacing / Search Radius overrides
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                Segment Spacing (m)
+              </label>
+              <input
+                type="number"
+                step="1000"
+                min="0"
+                placeholder="20000"
+                value={segmentDistanceMeters}
+                onChange={(e) => onSegmentDistanceMetersChange(e.target.value)}
+                className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-transparent px-2.5 py-1.5 text-sm text-slate-900 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                Search Radius (m)
+              </label>
+              <input
+                type="number"
+                step="500"
+                min="0"
+                placeholder="5000"
+                value={locationBiasRadiusMeters}
+                onChange={(e) => onLocationBiasRadiusMetersChange(e.target.value)}
+                className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-transparent px-2.5 py-1.5 text-sm text-slate-900 dark:text-white"
+              />
+            </div>
+          </div>
+          */}
           <button
             type="button"
             onClick={onCalculateRoute}
@@ -247,79 +292,70 @@ export function Sidebar({
         </div>
       </section>
 
-      <section className="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white mb-3">
-          <MapPin size={16} /> Gas Stations ({adviceOptions.length})
-        </h2>
-        {adviceOptions.length === 0 && (
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Calculate a route to see fuel-wise station options.
-          </p>
-        )}
-        <ul className="space-y-2">
-          {adviceOptions.map((option, index) => (
-            <li key={index}>
-              <button
-                type="button"
-                onClick={() => onSelectAdvice(index === selectedAdviceIndex ? null : index)}
-                className={`w-full text-left rounded-md border px-3 py-2 transition-colors ${index === selectedAdviceIndex
-                  ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
-                  : 'border-slate-200 dark:border-slate-700 hover:border-emerald-400'
-                  }`}
-              >
-                <p className="text-sm font-medium text-slate-900 dark:text-white">{option.station.displayName.text}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{option.station.formattedAddress}</p>
-                <span
-                  className={
-                    index === cheapestAdviceIndex
-                      ? 'text-xs font-semibold text-emerald-600 dark:text-emerald-400'
-                      : 'text-xs text-slate-700 dark:text-slate-300'
-                  }
-                >
-                  €{option.fuelPricePerLiter.toFixed(3)} / L
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </section>
-
       <section className="px-5 py-4">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white mb-3">
-          <Route size={16} /> Route Advice
+          <Fuel size={16} /> Fuel-Wise Route Plans ({multiStopPlans.length})
         </h2>
-        {adviceOptions.length === 0 && (
+        {multiStopPlans.length === 0 && (
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            The best money-saving detours will appear here after you calculate a route.
+            Calculate a route to see refuel plans for trips that need more than one tank.
           </p>
         )}
         <div className="space-y-3">
-          {adviceOptions.map((option, index) => (
-            <button
-              type="button"
-              key={index}
-              onClick={() => onSelectAdvice(index === selectedAdviceIndex ? null : index)}
-              className={`w-full text-left rounded-md bg-emerald-50 dark:bg-emerald-900/20 border px-3 py-3 transition-colors ${index === selectedAdviceIndex
-                ? 'border-emerald-500 ring-1 ring-emerald-500'
-                : 'border-emerald-200 dark:border-emerald-800 hover:border-emerald-400'
-                }`}
-            >
-              <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
-                {option.station.displayName.text}
-              </p>
-              <p className="text-xs text-emerald-700/80 dark:text-emerald-400/80 mb-2">
-                {option.station.formattedAddress} · €{option.fuelPricePerLiter.toFixed(3)}/L
-              </p>
-              <div className="text-xs text-emerald-700 dark:text-emerald-400 space-y-0.5 mb-2">
-                <p>Total trip cost: €{option.totalCostOffset.toFixed(2)}</p>
-                <p>Added time: {formatDuration(option.addedSeconds)}</p>
-                <p>Added distance: {formatDistanceKm(option.addedMeters)}</p>
+          {multiStopPlans.map((plan, index) => {
+            return (
+              <div key={index}>
+                <button
+                  type="button"
+                  onClick={() => onSelectPlan(index === selectedPlanIndex ? null : index)}
+                  className={`w-full text-left rounded-md bg-emerald-50 dark:bg-emerald-900/20 border px-3 py-3 transition-colors ${index === selectedPlanIndex
+                    ? 'border-emerald-500 ring-1 ring-emerald-500'
+                    : 'border-emerald-200 dark:border-emerald-800 hover:border-emerald-400'
+                    }`}
+                >
+                  <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300 mb-1">
+                    Plan {index + 1} · {plan.stops.length === 0 ? 'No refuel needed' : `${plan.stops.length} stop${plan.stops.length > 1 ? 's' : ''}`}
+                  </p>
+                  <div className="text-xs text-emerald-700 dark:text-emerald-400 space-y-0.5 mb-2">
+                    <p>Total cost: {formatPlanTotalCost(plan)}</p>
+                    <p>Added time: {formatDuration(plan.totalAddedSeconds)}</p>
+                    <p>Added distance: {formatDistanceKm(plan.totalAddedMeters)}</p>
+                  </div>
+                  {plan.stops.length > 0 && (
+                    <ol className="space-y-1.5 mb-2">
+                      {plan.stops.map((stop, stopIndex) => (
+                        <li key={stopIndex} className="text-xs text-emerald-800/90 dark:text-emerald-300/90 border-t border-emerald-200 dark:border-emerald-800 pt-1.5">
+                          <p className="font-medium">
+                            {stopIndex + 1}. {stop.station.displayName.text}
+                          </p>
+                          <p className="text-emerald-700/70 dark:text-emerald-400/70">{stop.station.formattedAddress}</p>
+                          <p>
+                            {currencySymbol(getStopCurrencyCode(stop))}{stop.pricePerLiter.toFixed(3)}/L · {stop.litersPurchased.toFixed(1)} L ·
+                            {' '}{currencySymbol(getStopCurrencyCode(stop))}{stop.stopCost.toFixed(2)}
+                          </p>
+                          <p>At {formatDistanceKm(stop.positionMeters)} · +{formatDistanceKm(stop.addedMeters)} / +{formatDuration(stop.addedSeconds)} detour</p>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                    <Route size={12} /> {index === selectedPlanIndex ? 'Route shown on map' : 'Show route on map'}
+                  </span>
+                </button>
+                {plan.directionsUri && (
+                  <a
+                    href={plan.directionsUri}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    <Navigation size={12} /> Navigate in Google Maps
+                  </a>
+                )}
               </div>
-              <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
-                <Route size={12} /> {index === selectedAdviceIndex ? 'Route shown on map' : 'Show route on map'}
-              </span>
-            </button>
-          ))}
+            )
+          })}
         </div>
       </section>
     </div>

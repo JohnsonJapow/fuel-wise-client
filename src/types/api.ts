@@ -16,9 +16,9 @@ export interface MoneyAmount {
 }
 
 export interface StationFuelPrice {
-  type: string
-  price: MoneyAmount
-  updateTime: string
+  type: string | null
+  price: MoneyAmount | null
+  updateTime: string | null
 }
 
 export interface RouteLatLng {
@@ -62,6 +62,39 @@ export interface RouteAdviceOption {
 }
 
 export type RouteAdviceResponse = RouteAdviceOption[]
+
+export interface MultiStopRouteAdviceRequest {
+  originLat: number
+  originLng: number
+  destLat: number
+  destLng: number
+  fuelType: string
+  tankCapacityLiters?: number
+  currentFuelLiters?: number
+  fuelEfficiencyKml?: number
+  segmentDistanceMeters?: number
+  locationBiasRadiusMeters?: number
+}
+
+export interface MultiStopStop {
+  station: StationInfo
+  pricePerLiter: number
+  litersPurchased: number
+  positionMeters: number
+  addedMeters: number
+  addedSeconds: number
+  stopCost: number
+}
+
+export interface MultiStopPlan {
+  stops: MultiStopStop[]
+  totalCost: number
+  totalAddedSeconds: number
+  totalAddedMeters: number
+  directionsUri: string
+}
+
+export type MultiStopRouteAdviceResponse = MultiStopPlan[]
 
 export interface LatLng {
   lat: number

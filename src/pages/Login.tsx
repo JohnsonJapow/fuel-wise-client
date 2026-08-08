@@ -7,6 +7,7 @@ export function Login() {
   const navigate = useNavigate()
   const location = useLocation()
   const justRegistered = (location.state as { registered?: boolean } | null)?.registered
+  const sessionExpired = (location.state as { sessionExpired?: boolean } | null)?.sessionExpired
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -29,6 +30,11 @@ export function Login() {
         {justRegistered && (
           <p className="mb-4 rounded-md bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-sm px-3 py-2">
             Account created successfully. Please log in.
+          </p>
+        )}
+        {sessionExpired && (
+          <p className="mb-4 rounded-md bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-sm px-3 py-2">
+            Your session has expired. Please log in again.
           </p>
         )}
         <form onSubmit={handleSubmit} className="space-y-4">

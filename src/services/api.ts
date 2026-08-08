@@ -1,4 +1,7 @@
-import type { RouteAdviceRequest, RouteAdviceResponse } from '../types/api'
+import type {
+  MultiStopRouteAdviceRequest,
+  MultiStopRouteAdviceResponse,
+} from '../types/api'
 import type {
   LoginInput,
   LoginResponse,
@@ -40,9 +43,23 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>
 }
 
-export async function fetchRouteAdvice(body: RouteAdviceRequest): Promise<RouteAdviceResponse> {
+// Deprecated: single-stop /routes/advice is superseded by fetchMultiStopRouteAdvice (see 3.5 in claude.md).
+// export async function fetchRouteAdvice(body: RouteAdviceRequest): Promise<RouteAdviceResponse> {
+//   const token = getStoredToken()
+//   const res = await fetch(`${API_BASE_URL}/api/v1/routes/advice`, {
+//     method: 'POST',
+//     headers: {
+//       'Content-Type': 'application/json',
+//       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+//     },
+//     body: JSON.stringify(body),
+//   })
+//   return handleResponse<RouteAdviceResponse>(res)
+// }
+
+export async function fetchMultiStopRouteAdvice(body: MultiStopRouteAdviceRequest): Promise<MultiStopRouteAdviceResponse> {
   const token = getStoredToken()
-  const res = await fetch(`${API_BASE_URL}/api/v1/routes/advice`, {
+  const res = await fetch(`${API_BASE_URL}/api/v1/routes/advice/multi-stop`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -50,7 +67,7 @@ export async function fetchRouteAdvice(body: RouteAdviceRequest): Promise<RouteA
     },
     body: JSON.stringify(body),
   })
-  return handleResponse<RouteAdviceResponse>(res)
+  return handleResponse<MultiStopRouteAdviceResponse>(res)
 }
 
 export async function registerUser(input: RegisterInput): Promise<RegisterResponse> {
