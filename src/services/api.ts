@@ -16,10 +16,12 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
 
 class ApiError extends Error {
   status: number
+  reason?: string
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, reason?: string) {
     super(message)
     this.status = status
+    this.reason = reason
   }
 }
 
@@ -29,16 +31,37 @@ const STATUS_FALLBACK_MESSAGES: Record<number, string> = {
   409: 'An account with this email already exists.',
 }
 
+// Suggested messages for /routes/advice/multi-stop 404 `reason` values (see 3.5 in claude.md).
+const ADVICE_404_REASON_MESSAGES: Record<string, string> = {
+  NO_ROUTE_FOUND: 'No driving route exists between these locations.',
+  NO_STATIONS_FOUND: 'No gas stations found along this route.',
+  NO_FUEL_PRICE_DATA: "Fuel price data isn't available for this area.",
+  FUEL_TYPE_UNAVAILABLE: 'No stations report a price for this fuel type here. Try another fuel type.',
+  OUT_OF_RANGE: "This trip isn't reachable with your current tank range. Try increasing tank capacity or starting fuel.",
+}
+
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let message = STATUS_FALLBACK_MESSAGES[res.status] ?? `Request failed with status ${res.status}`
+    let reason: string | undefined
     try {
       const body = await res.json()
-      message = body?.message ?? body?.error ?? message
+      if (res.status === 404 && typeof body?.reason === 'string') {
+        reason = body.reason
+        message = ADVICE_404_REASON_MESSAGES[body.reason] ?? body.message ?? body.error ?? message
+      } else if (res.status === 400 && body && typeof body === 'object' && !body.message && !body.error) {
+        // Validation errors come back as { "<fieldName>": "<message>", ... }.
+        const fieldErrors = Object.entries(body)
+          .filter(([, v]) => typeof v === 'string')
+          .map(([field, msg]) => `${field}: ${msg}`)
+        if (fieldErrors.length > 0) message = fieldErrors.join('; ')
+      } else {
+        message = body?.message ?? body?.error ?? message
+      }
     } catch {
       // response had no JSON body
     }
-    throw new ApiError(res.status, message)
+    throw new ApiError(res.status, message, reason)
   }
   return res.json() as Promise<T>
 }
