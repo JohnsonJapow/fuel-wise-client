@@ -42,6 +42,6 @@ export interface AuthContextValue {
   isLoading: boolean
   register: (input: RegisterInput) => Promise<void>
   login: (input: LoginInput) => Promise<void>
-  logout: () => void
+  logout: (reason?: 'expired') => void
   updateProfile: (updates: UpdateProfileInput) => Promise<void>
 }

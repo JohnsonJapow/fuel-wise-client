@@ -1,13 +1,18 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { consumeSessionExpiredFlag } from '../utils/authStorage'
 
 export function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const justRegistered = (location.state as { registered?: boolean } | null)?.registered
-  const sessionExpired = (location.state as { sessionExpired?: boolean } | null)?.sessionExpired
+  // location.state can be lost if ProtectedRoute's own redirect races the caller's navigate(),
+  // so also fall back to the sessionStorage flag set by AuthContext.logout('expired').
+  const [sessionExpired] = useState(
+    () => Boolean((location.state as { sessionExpired?: boolean } | null)?.sessionExpired) || consumeSessionExpiredFlag(),
+  )
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)

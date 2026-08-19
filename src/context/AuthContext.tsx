@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { AuthContextValue, LoginInput, RegisterInput, UpdateProfileInput, UserProfile } from '../types/auth'
 import { loginUser, registerUser, updateProfile as updateProfileApi } from '../services/api'
-import { clearStoredAuth, getStoredToken, getStoredUser, setStoredAuth } from '../utils/authStorage'
+import { clearStoredAuth, getStoredToken, getStoredUser, setSessionExpiredFlag, setStoredAuth } from '../utils/authStorage'
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
@@ -34,7 +34,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(profile)
   }
 
-  function logout() {
+  function logout(reason?: 'expired') {
+    if (reason === 'expired') setSessionExpiredFlag()
     clearStoredAuth()
     setToken(null)
     setUser(null)
