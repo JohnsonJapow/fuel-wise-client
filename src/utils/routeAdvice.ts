@@ -1,4 +1,14 @@
-import type { LatLng, MultiStopPlan, MultiStopStop, RouteAdviceOption } from '../types/api'
+import type { LatLng, MultiStopPlan, MultiStopStop, NoPlanReason, RouteAdviceOption } from '../types/api'
+
+// Suggested messages for the `reason`/`noPlanReason` values shared by /routes/multi-advices (404 body)
+// and /saved-routes/{id}/recalculate (201 body) — see 3.5 and 3.9 in claude.md.
+export const NO_PLAN_REASON_MESSAGES: Record<NoPlanReason, string> = {
+  NO_ROUTE_FOUND: 'No driving route exists between these locations.',
+  NO_STATIONS_FOUND: 'No gas stations found along this route.',
+  NO_FUEL_PRICE_DATA: "Fuel price data isn't available for this area.",
+  FUEL_TYPE_UNAVAILABLE: 'No stations report a price for this fuel type here. Try another fuel type.',
+  OUT_OF_RANGE: "This trip isn't reachable with your current tank range. Try increasing tank capacity or starting fuel.",
+}
 
 /**
  * Prefer the station's own Places API location; fall back to the leg
