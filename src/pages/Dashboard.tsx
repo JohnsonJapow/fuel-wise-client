@@ -1,11 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { List, MapIcon } from 'lucide-react'
+import { Bookmark, List, MapIcon, Route as RouteIcon } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { MapView } from '../components/MapView'
 import { Sidebar } from '../components/Sidebar'
-import { ApiError, fetchMultiStopRouteAdvice } from '../services/api'
-import type { LatLng, MultiStopPlan } from '../types/api'
+import { SavedTrips } from '../components/SavedTrips'
+import {
+  ApiError,
+  deleteSavedRoute,
+  fetchMultiStopRouteAdvice,
+  fetchSavedRoutes,
+  recalculateSavedRoute,
+  saveRoute,
+} from '../services/api'
+import type { LatLng, MultiStopPlan, RecalculateSavedRouteResponse, SavedRoute } from '../types/api'
 
 const DEFAULT_CENTER: LatLng = { lat: 52.52, lng: 13.405 }
 const MAX_ADVICE_OPTIONS = 3
@@ -51,7 +59,22 @@ export function Dashboard() {
   const [multiStopPlans, setMultiStopPlans] = useState<MultiStopPlan[]>([])
   const [selectedPlanIndex, setSelectedPlanIndex] = useState<number | null>(null)
 
+  const [routeName, setRouteName] = useState('')
+  const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([])
+  const [savedRoutesLoaded, setSavedRoutesLoaded] = useState(false)
+  const [savedRoutesLoading, setSavedRoutesLoading] = useState(false)
+  const [savedRoutesError, setSavedRoutesError] = useState<string | null>(null)
+  const [activeSavedRouteId, setActiveSavedRouteId] = useState<string | null>(null)
+  const [saveRouteLoading, setSaveRouteLoading] = useState(false)
+  const [saveRouteError, setSaveRouteError] = useState<string | null>(null)
+  const [saveRouteSuccess, setSaveRouteSuccess] = useState(false)
+
+  const [recalcResults, setRecalcResults] = useState<Record<string, RecalculateSavedRouteResponse>>({})
+  const [recalcLoadingIds, setRecalcLoadingIds] = useState<Record<string, boolean>>({})
+  const [recalcErrors, setRecalcErrors] = useState<Record<string, string | null>>({})
+
   const [mobileView, setMobileView] = useState<'sidebar' | 'map'>('sidebar')
+  const [sidebarView, setSidebarView] = useState<'planner' | 'saved'>('planner')
 
   const origin: LatLng | null = useMemo(() => {
     const lat = parseCoord(originLat)
@@ -66,6 +89,31 @@ export function Dashboard() {
   }, [destLat, destLng])
 
   const currentFuelValid = useMemo(() => parseCoord(currentFuel) != null, [currentFuel])
+
+  async function loadSavedRoutes() {
+    if (!user) return
+    setSavedRoutesLoading(true)
+    setSavedRoutesError(null)
+    try {
+      const routes = await fetchSavedRoutes()
+      setSavedRoutes(routes)
+      setSavedRoutesLoaded(true)
+    } catch (err) {
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        logout('expired')
+        navigate('/login', { replace: true, state: { sessionExpired: true } })
+        return
+      }
+      setSavedRoutesError(err instanceof Error ? err.message : 'Failed to load saved routes')
+    } finally {
+      setSavedRoutesLoading(false)
+    }
+  }
+
+  function handleShowSavedTrips() {
+    setSidebarView('saved')
+    if (!savedRoutesLoaded) loadSavedRoutes()
+  }
 
   function handleMapClick(loc: LatLng) {
     if (pickMode === 'origin') {
@@ -97,7 +145,7 @@ export function Dashboard() {
       setTimeout(() => setProfileSaved(false), 2000)
     } catch (err) {
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
-        logout()
+        logout('expired')
         navigate('/login', { replace: true, state: { sessionExpired: true } })
         return
       }
@@ -139,28 +187,9 @@ export function Dashboard() {
         setMobileView('map')
       }
 
-      // Deprecated: single-stop /routes/advice is superseded by fetchMultiStopRouteAdvice (see 3.5 in claude.md).
-      // const result = await fetchRouteAdvice({
-      //   originLat: origin.lat,
-      //   originLng: origin.lng,
-      //   destLat: destination.lat,
-      //   destLng: destination.lng,
-      //   fuelType,
-      //   tankCapacityLiters,
-      //   currentFuelLiters,
-      //   fuelEfficiencyKml,
-      // })
-      // const sorted = [...result].sort((a, b) => a.totalCostOffset - b.totalCostOffset).slice(0, MAX_ADVICE_OPTIONS)
-      // setAdviceOptions(sorted)
-      // setSelectedAdviceIndex(sorted.length > 0 ? 0 : null)
-      // if (sorted.length === 0) {
-      //   setRouteError('No route found for the given origin and destination.')
-      // } else {
-      //   setMobileView('map')
-      // }
     } catch (err) {
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
-        logout()
+        logout('expired')
         navigate('/login', { replace: true, state: { sessionExpired: true } })
         return
       }
@@ -173,6 +202,110 @@ export function Dashboard() {
   function handleSelectPlan(index: number | null) {
     setSelectedPlanIndex(index)
     if (index != null) setMobileView('map')
+  }
+
+  async function handleSaveRoute() {
+    if (!origin || !destination || selectedPlanIndex == null || routeName.trim() === '') return
+    const plan = multiStopPlans[selectedPlanIndex]
+    if (!plan) return
+    const trimmedName = routeName.trim()
+    setSaveRouteLoading(true)
+    setSaveRouteError(null)
+    try {
+      const summary = await saveRoute({
+        plan,
+        routeName: trimmedName,
+        originLat: origin.lat,
+        originLng: origin.lng,
+        destLat: destination.lat,
+        destLng: destination.lng,
+        fuelType,
+      })
+      setSavedRoutes((prev) => [{ ...summary, routeName: trimmedName, plan }, ...prev])
+      setSavedRoutesLoaded(true)
+      setSaveRouteSuccess(true)
+      setRouteName('')
+      setTimeout(() => setSaveRouteSuccess(false), 2000)
+    } catch (err) {
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        logout('expired')
+        navigate('/login', { replace: true, state: { sessionExpired: true } })
+        return
+      }
+      setSaveRouteError(err instanceof Error ? err.message : 'Failed to save route')
+    } finally {
+      setSaveRouteLoading(false)
+    }
+  }
+
+  function handleLoadSavedRoute(route: SavedRoute) {
+    setOriginLat(String(route.originLat))
+    setOriginLng(String(route.originLng))
+    setDestLat(String(route.destLat))
+    setDestLng(String(route.destLng))
+    setFuelType(route.fuelType)
+    setMultiStopPlans([route.plan])
+    setSelectedPlanIndex(0)
+    setActiveSavedRouteId(route.id)
+    setSidebarView('saved')
+    setMobileView('map')
+  }
+
+  async function handleRecalculateSavedRoute(route: SavedRoute, currentFuelLiters: number) {
+    setRecalcLoadingIds((prev) => ({ ...prev, [route.id]: true }))
+    setRecalcErrors((prev) => ({ ...prev, [route.id]: null }))
+    try {
+      const result = await recalculateSavedRoute(route.id, { currentFuelLiters })
+      setRecalcResults((prev) => ({ ...prev, [route.id]: result }))
+      // totalCost and noPlanReason are mutually exclusive (see 3.9 in claude.md) — totalCost present
+      // means a viable plan was found, so that's the signal to navigate, not the (possibly empty) plans array.
+      if (result.totalCost != null) {
+        // Display the recalculated plans the same way a fresh "Calculate Fuel-Wise Route" does,
+        // so the user can pick among the (up to 3) options rather than just seeing the old saved plan.
+        const plans = result.plans && result.plans.length > 0 ? result.plans : [route.plan]
+        const sorted = [...plans].sort((a, b) => a.totalCost - b.totalCost).slice(0, MAX_ADVICE_OPTIONS)
+        setOriginLat(String(route.originLat))
+        setOriginLng(String(route.originLng))
+        setDestLat(String(route.destLat))
+        setDestLng(String(route.destLng))
+        setFuelType(route.fuelType)
+        setCurrentFuel(String(currentFuelLiters))
+        setMultiStopPlans(sorted)
+        setSelectedPlanIndex(0)
+        setActiveSavedRouteId(route.id)
+        setRouteError(null)
+        setRouteName(route.routeName)
+        // Land on the Planner panel (not the map) — that's where the plan list and "Save this trip" button are.
+        setSidebarView('planner')
+        setMobileView('sidebar')
+      }
+    } catch (err) {
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        logout('expired')
+        navigate('/login', { replace: true, state: { sessionExpired: true } })
+        return
+      }
+      setRecalcErrors((prev) => ({ ...prev, [route.id]: err instanceof Error ? err.message : 'Failed to recalculate route' }))
+    } finally {
+      setRecalcLoadingIds((prev) => ({ ...prev, [route.id]: false }))
+    }
+  }
+
+  async function handleDeleteSavedRoute(id: string) {
+    const previous = savedRoutes
+    setSavedRoutes((prev) => prev.filter((r) => r.id !== id))
+    if (activeSavedRouteId === id) setActiveSavedRouteId(null)
+    try {
+      await deleteSavedRoute(id)
+    } catch (err) {
+      setSavedRoutes(previous)
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        logout('expired')
+        navigate('/login', { replace: true, state: { sessionExpired: true } })
+        return
+      }
+      setSavedRoutesError(err instanceof Error ? err.message : 'Failed to delete saved route')
+    }
   }
 
   if (!user) return null
@@ -203,48 +336,96 @@ export function Dashboard() {
       </div>
 
       <div className={`w-full md:w-[35%] md:min-w-90 h-full ${mobileView === 'sidebar' ? 'block' : 'hidden'} md:block`}>
-        <Sidebar
-          user={user}
-          onLogout={logout}
-          tankOverride={tankOverride}
-          fuelEfficiencyOverride={fuelEfficiencyOverride}
-          currentFuel={currentFuel}
-          onTankOverrideChange={setTankOverride}
-          onFuelEfficiencyOverrideChange={setFuelEfficiencyOverride}
-          onCurrentFuelChange={setCurrentFuel}
-          onSaveProfileOverrides={handleSaveProfileOverrides}
-          profileSaved={profileSaved}
-          profileSaving={profileSaving}
-          profileError={profileError}
-          fuelType={fuelType}
-          onFuelTypeChange={setFuelType}
-          segmentDistanceMeters={segmentDistanceMeters}
-          onSegmentDistanceMetersChange={setSegmentDistanceMeters}
-          locationBiasRadiusMeters={locationBiasRadiusMeters}
-          onLocationBiasRadiusMetersChange={setLocationBiasRadiusMeters}
-          originLat={originLat}
-          originLng={originLng}
-          destLat={destLat}
-          destLng={destLng}
-          onOriginLatChange={setOriginLat}
-          onOriginLngChange={setOriginLng}
-          onDestLatChange={setDestLat}
-          onDestLngChange={setDestLng}
-          originValid={origin != null}
-          destinationValid={destination != null}
-          currentFuelValid={currentFuelValid}
-          pickMode={pickMode}
-          onTogglePickMode={(mode) => {
-            setPickMode((prev) => (prev === mode ? null : mode))
-            setMobileView('map')
-          }}
-          onCalculateRoute={handleCalculateRoute}
-          routeLoading={routeLoading}
-          routeError={routeError}
-          multiStopPlans={multiStopPlans}
-          selectedPlanIndex={selectedPlanIndex}
-          onSelectPlan={handleSelectPlan}
-        />
+        <div className="h-full flex flex-col">
+          <div className="flex shrink-0 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+            <button
+              type="button"
+              onClick={() => setSidebarView('planner')}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium ${
+                sidebarView === 'planner'
+                  ? 'text-emerald-600 border-b-2 border-emerald-600'
+                  : 'text-slate-500 dark:text-slate-400'
+              }`}
+            >
+              <RouteIcon size={16} /> Planner
+            </button>
+            <button
+              type="button"
+              onClick={handleShowSavedTrips}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium ${
+                sidebarView === 'saved' ? 'text-emerald-600 border-b-2 border-emerald-600' : 'text-slate-500 dark:text-slate-400'
+              }`}
+            >
+              <Bookmark size={16} /> Saved Trips
+            </button>
+          </div>
+          <div className="flex-1 min-h-0">
+            {sidebarView === 'planner' ? (
+              <Sidebar
+                user={user}
+                onLogout={logout}
+                tankOverride={tankOverride}
+                fuelEfficiencyOverride={fuelEfficiencyOverride}
+                currentFuel={currentFuel}
+                onTankOverrideChange={setTankOverride}
+                onFuelEfficiencyOverrideChange={setFuelEfficiencyOverride}
+                onCurrentFuelChange={setCurrentFuel}
+                onSaveProfileOverrides={handleSaveProfileOverrides}
+                profileSaved={profileSaved}
+                profileSaving={profileSaving}
+                profileError={profileError}
+                fuelType={fuelType}
+                onFuelTypeChange={setFuelType}
+                segmentDistanceMeters={segmentDistanceMeters}
+                onSegmentDistanceMetersChange={setSegmentDistanceMeters}
+                locationBiasRadiusMeters={locationBiasRadiusMeters}
+                onLocationBiasRadiusMetersChange={setLocationBiasRadiusMeters}
+                originLat={originLat}
+                originLng={originLng}
+                destLat={destLat}
+                destLng={destLng}
+                onOriginLatChange={setOriginLat}
+                onOriginLngChange={setOriginLng}
+                onDestLatChange={setDestLat}
+                onDestLngChange={setDestLng}
+                originValid={origin != null}
+                destinationValid={destination != null}
+                currentFuelValid={currentFuelValid}
+                pickMode={pickMode}
+                onTogglePickMode={(mode) => {
+                  setPickMode((prev) => (prev === mode ? null : mode))
+                  setMobileView('map')
+                }}
+                onCalculateRoute={handleCalculateRoute}
+                routeLoading={routeLoading}
+                routeError={routeError}
+                multiStopPlans={multiStopPlans}
+                selectedPlanIndex={selectedPlanIndex}
+                onSelectPlan={handleSelectPlan}
+                routeName={routeName}
+                onRouteNameChange={setRouteName}
+                onSaveRoute={handleSaveRoute}
+                saveRouteLoading={saveRouteLoading}
+                saveRouteError={saveRouteError}
+                saveRouteSuccess={saveRouteSuccess}
+              />
+            ) : (
+              <SavedTrips
+                savedRoutes={savedRoutes}
+                loading={savedRoutesLoading}
+                error={savedRoutesError}
+                activeRouteId={activeSavedRouteId}
+                onRefresh={loadSavedRoutes}
+                onSelectRoute={handleLoadSavedRoute}
+                onDeleteRoute={handleDeleteSavedRoute}
+                recalcResults={recalcResults}
+                recalcLoadingIds={recalcLoadingIds}
+                recalcErrors={recalcErrors}
+                onRecalculateRoute={handleRecalculateSavedRoute}
+              />
+            )}
+          </div>
+        </div>
       </div>
 
       <div className={`w-full md:w-[65%] h-full ${mobileView === 'map' ? 'block' : 'hidden'} md:block`}>

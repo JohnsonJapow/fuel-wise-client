@@ -100,3 +100,47 @@ export interface LatLng {
   lat: number
   lng: number
 }
+
+export interface SaveRouteRequest {
+  plan: MultiStopPlan
+  routeName: string
+  originLat: number
+  originLng: number
+  destLat: number
+  destLng: number
+  fuelType: string
+}
+
+export interface SavedRouteSummary {
+  id: string
+  originLat: number
+  originLng: number
+  destLat: number
+  destLng: number
+  fuelType: string
+  createdAt: string
+}
+
+export interface SavedRoute extends SavedRouteSummary {
+  plan: MultiStopPlan
+  routeName: string
+}
+
+export type NoPlanReason =
+  | 'NO_ROUTE_FOUND'
+  | 'NO_STATIONS_FOUND'
+  | 'NO_FUEL_PRICE_DATA'
+  | 'FUEL_TYPE_UNAVAILABLE'
+  | 'OUT_OF_RANGE'
+
+export interface RecalculateSavedRouteRequest {
+  currentFuelLiters: number
+}
+
+export interface RecalculateSavedRouteResponse {
+  id: string
+  totalCost: number | null
+  plans: MultiStopPlan[] | null
+  noPlanReason: NoPlanReason | null
+  checkedAt: string
+}

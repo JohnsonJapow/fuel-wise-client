@@ -1,6 +1,11 @@
 import type {
   MultiStopRouteAdviceRequest,
   MultiStopRouteAdviceResponse,
+  RecalculateSavedRouteRequest,
+  RecalculateSavedRouteResponse,
+  SaveRouteRequest,
+  SavedRoute,
+  SavedRouteSummary,
 } from '../types/api'
 import type {
   LoginInput,
@@ -11,6 +16,7 @@ import type {
   UpdateProfileResponse,
 } from '../types/auth'
 import { getStoredToken } from '../utils/authStorage'
+import { NO_PLAN_REASON_MESSAGES } from '../utils/routeAdvice'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
 
@@ -31,24 +37,16 @@ const STATUS_FALLBACK_MESSAGES: Record<number, string> = {
   409: 'An account with this email already exists.',
 }
 
-// Suggested messages for /routes/advice/multi-stop 404 `reason` values (see 3.5 in claude.md).
-const ADVICE_404_REASON_MESSAGES: Record<string, string> = {
-  NO_ROUTE_FOUND: 'No driving route exists between these locations.',
-  NO_STATIONS_FOUND: 'No gas stations found along this route.',
-  NO_FUEL_PRICE_DATA: "Fuel price data isn't available for this area.",
-  FUEL_TYPE_UNAVAILABLE: 'No stations report a price for this fuel type here. Try another fuel type.',
-  OUT_OF_RANGE: "This trip isn't reachable with your current tank range. Try increasing tank capacity or starting fuel.",
-}
-
-async function handleResponse<T>(res: Response): Promise<T> {
+async function handleResponse<T>(res: Response, statusMessages?: Record<number, string>): Promise<T> {
   if (!res.ok) {
-    let message = STATUS_FALLBACK_MESSAGES[res.status] ?? `Request failed with status ${res.status}`
+    let message =
+      statusMessages?.[res.status] ?? STATUS_FALLBACK_MESSAGES[res.status] ?? `Request failed with status ${res.status}`
     let reason: string | undefined
     try {
       const body = await res.json()
       if (res.status === 404 && typeof body?.reason === 'string') {
         reason = body.reason
-        message = ADVICE_404_REASON_MESSAGES[body.reason] ?? body.message ?? body.error ?? message
+        message = NO_PLAN_REASON_MESSAGES[body.reason as keyof typeof NO_PLAN_REASON_MESSAGES] ?? body.message ?? body.error ?? message
       } else if (res.status === 400 && body && typeof body === 'object' && !body.message && !body.error) {
         // Validation errors come back as { "<fieldName>": "<message>", ... }.
         const fieldErrors = Object.entries(body)
@@ -82,7 +80,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 export async function fetchMultiStopRouteAdvice(body: MultiStopRouteAdviceRequest): Promise<MultiStopRouteAdviceResponse> {
   const token = getStoredToken()
-  const res = await fetch(`${API_BASE_URL}/api/v1/routes/advice/multi-stop`, {
+  const res = await fetch(`${API_BASE_URL}/api/v1/routes/multi-advices`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -91,6 +89,63 @@ export async function fetchMultiStopRouteAdvice(body: MultiStopRouteAdviceReques
     body: JSON.stringify(body),
   })
   return handleResponse<MultiStopRouteAdviceResponse>(res)
+}
+
+export async function saveRoute(input: SaveRouteRequest): Promise<SavedRouteSummary> {
+  const token = getStoredToken()
+  const res = await fetch(`${API_BASE_URL}/api/v1/saved-routes`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(input),
+  })
+  return handleResponse<SavedRouteSummary>(res, {
+    409: 'You already have this exact trip saved.',
+  })
+}
+
+export async function fetchSavedRoutes(): Promise<SavedRoute[]> {
+  const token = getStoredToken()
+  const res = await fetch(`${API_BASE_URL}/api/v1/saved-routes`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  })
+  return handleResponse<SavedRoute[]>(res)
+}
+
+export async function deleteSavedRoute(id: string): Promise<void> {
+  const token = getStoredToken()
+  const res = await fetch(`${API_BASE_URL}/api/v1/saved-routes/${id}`, {
+    method: 'DELETE',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  })
+  if (res.status === 204) return
+  await handleResponse<void>(res)
+}
+
+export async function recalculateSavedRoute(
+  savedRouteId: string,
+  body: RecalculateSavedRouteRequest,
+): Promise<RecalculateSavedRouteResponse> {
+  const token = getStoredToken()
+  const res = await fetch(`${API_BASE_URL}/api/v1/saved-routes/${savedRouteId}/recalculate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  })
+  return handleResponse<RecalculateSavedRouteResponse>(res, {
+    404: 'No saved route found with that id.',
+  })
 }
 
 export async function registerUser(input: RegisterInput): Promise<RegisterResponse> {

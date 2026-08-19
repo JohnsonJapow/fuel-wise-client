@@ -1,4 +1,4 @@
-import { Crosshair, Fuel, Gauge, LogOut, Navigation, Route, Save } from 'lucide-react'
+import { Bookmark, Crosshair, Fuel, Gauge, LogOut, Navigation, Route, Save } from 'lucide-react'
 import type { MultiStopPlan } from '../types/api'
 import type { UserProfile } from '../types/auth'
 import {
@@ -56,6 +56,13 @@ interface SidebarProps {
   multiStopPlans: MultiStopPlan[]
   selectedPlanIndex: number | null
   onSelectPlan: (index: number | null) => void
+
+  routeName: string
+  onRouteNameChange: (value: string) => void
+  onSaveRoute: () => void
+  saveRouteLoading: boolean
+  saveRouteError: string | null
+  saveRouteSuccess: boolean
 }
 
 export function Sidebar({
@@ -97,6 +104,12 @@ export function Sidebar({
   multiStopPlans,
   selectedPlanIndex,
   onSelectPlan,
+  routeName,
+  onRouteNameChange,
+  onSaveRoute,
+  saveRouteLoading,
+  saveRouteError,
+  saveRouteSuccess,
 }: SidebarProps) {
   return (
     <div className="h-full overflow-y-auto bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800">
@@ -293,10 +306,36 @@ export function Sidebar({
         </div>
       </section>
 
-      <section className="px-5 py-4">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white mb-3">
-          <Fuel size={16} /> Fuel-Wise Route Plans ({multiStopPlans.length})
-        </h2>
+      <section className="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+            <Fuel size={16} /> Fuel-Wise Route Plans ({multiStopPlans.length})
+          </h2>
+        </div>
+        {multiStopPlans.length > 0 && (
+          <div className="flex items-center gap-2 mb-3">
+            <input
+              type="text"
+              placeholder="Route name (e.g. Commute)"
+              value={routeName}
+              onChange={(e) => onRouteNameChange(e.target.value)}
+              className="flex-1 min-w-0 rounded-md border border-slate-300 dark:border-slate-600 bg-transparent px-2.5 py-1.5 text-sm text-slate-900 dark:text-white"
+            />
+            <button
+              type="button"
+              onClick={onSaveRoute}
+              disabled={saveRouteLoading || selectedPlanIndex == null || routeName.trim() === ''}
+              className="shrink-0 flex items-center gap-1.5 text-xs font-medium text-emerald-600 hover:text-emerald-700 disabled:opacity-50"
+            >
+              <Bookmark size={14} /> {saveRouteLoading ? 'Saving...' : 'Save this trip'}
+            </button>
+          </div>
+        )}
+        {saveRouteSuccess && <p className="mb-2 text-xs text-emerald-600">Route saved.</p>}
+        {saveRouteError && <p className="mb-2 text-xs text-red-600">{saveRouteError}</p>}
+        {multiStopPlans.length > 0 && selectedPlanIndex == null && (
+          <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">Select a plan below to save it.</p>
+        )}
         {multiStopPlans.length === 0 && (
           <p className="text-xs text-slate-500 dark:text-slate-400">
             Calculate a route to see refuel plans for trips that need more than one tank.
