@@ -1,7 +1,31 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import type { AuthContextValue, LoginInput, RegisterInput, UpdateProfileInput, UserProfile } from '../types/auth'
-import { loginUser, registerUser, updateProfile as updateProfileApi } from '../services/api'
-import { clearStoredAuth, getStoredToken, getStoredUser, setSessionExpiredFlag, setStoredAuth } from '../utils/authStorage'
+import type {
+  AuthContextValue,
+  LoginInput,
+  RegisterInput,
+  TerminateAccountInput,
+  UpdateEmailInput,
+  UpdatePasswordInput,
+  UpdateProfileInput,
+  UserProfile,
+} from '../types/auth'
+import {
+  loginUser,
+  registerUser,
+  terminateAccount as terminateAccountApi,
+  updateEmail as updateEmailApi,
+  updatePassword as updatePasswordApi,
+  updateProfile as updateProfileApi,
+} from '../services/api'
+import {
+  clearStoredAuth,
+  getStoredToken,
+  getStoredUser,
+  setAccountTerminatedFlag,
+  setPasswordChangedFlag,
+  setSessionExpiredFlag,
+  setStoredAuth,
+} from '../utils/authStorage'
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
@@ -47,6 +71,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (token) setStoredAuth(token, updated)
   }
 
+  // Password change bumps the server-side token version, invalidating this session's token —
+  // clear local auth state so the user is routed back to login rather than left with a dead token.
+  async function changePassword(input: UpdatePasswordInput) {
+    await updatePasswordApi(input)
+    setPasswordChangedFlag()
+    clearStoredAuth()
+    setToken(null)
+    setUser(null)
+  }
+
+  async function changeEmail(input: UpdateEmailInput) {
+    const { token: newToken, user: profile } = await updateEmailApi(input)
+    setStoredAuth(newToken, profile)
+    setToken(newToken)
+    setUser(profile)
+  }
+
+  // Termination bumps the token version server-side too, so clear local auth state the same way.
+  async function terminateAccount(input: TerminateAccountInput) {
+    await terminateAccountApi(input)
+    setAccountTerminatedFlag()
+    clearStoredAuth()
+    setToken(null)
+    setUser(null)
+  }
+
   const value: AuthContextValue = {
     user,
     token,
@@ -56,6 +106,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login,
     logout,
     updateProfile,
+    changePassword,
+    changeEmail,
+    terminateAccount,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

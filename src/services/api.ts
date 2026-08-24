@@ -12,6 +12,11 @@ import type {
   LoginResponse,
   RegisterInput,
   RegisterResponse,
+  TerminateAccountInput,
+  UpdateEmailInput,
+  UpdateEmailResponse,
+  UpdatePasswordInput,
+  UpdatePasswordResponse,
   UpdateProfileInput,
   UpdateProfileResponse,
 } from '../types/auth'
@@ -183,6 +188,53 @@ export async function updateProfile(input: UpdateProfileInput): Promise<UpdatePr
     body: JSON.stringify(input),
   })
   return handleResponse<UpdateProfileResponse>(res)
+}
+
+export async function updatePassword(input: UpdatePasswordInput): Promise<UpdatePasswordResponse> {
+  const token = getStoredToken()
+  const res = await fetch(`${API_BASE_URL}/api/v1/auth/password`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(input),
+  })
+  return handleResponse<UpdatePasswordResponse>(res, {
+    401: 'Current password is incorrect.',
+  })
+}
+
+export async function updateEmail(input: UpdateEmailInput): Promise<UpdateEmailResponse> {
+  const token = getStoredToken()
+  const res = await fetch(`${API_BASE_URL}/api/v1/auth/email`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(input),
+  })
+  return handleResponse<UpdateEmailResponse>(res, {
+    401: 'Current password is incorrect.',
+    409: 'That email is already registered to another account.',
+  })
+}
+
+export async function terminateAccount(input: TerminateAccountInput): Promise<void> {
+  const token = getStoredToken()
+  const res = await fetch(`${API_BASE_URL}/api/v1/auth/account`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(input),
+  })
+  if (res.status === 204) return
+  await handleResponse<void>(res, {
+    401: 'Current password is incorrect.',
+  })
 }
 
 export { ApiError }

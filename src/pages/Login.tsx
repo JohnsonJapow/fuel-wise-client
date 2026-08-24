@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { consumeSessionExpiredFlag } from '../utils/authStorage'
+import { consumeAccountTerminatedFlag, consumePasswordChangedFlag, consumeSessionExpiredFlag } from '../utils/authStorage'
 
 export function Login() {
   const { login } = useAuth()
@@ -12,6 +12,14 @@ export function Login() {
   // so also fall back to the sessionStorage flag set by AuthContext.logout('expired').
   const [sessionExpired] = useState(
     () => Boolean((location.state as { sessionExpired?: boolean } | null)?.sessionExpired) || consumeSessionExpiredFlag(),
+  )
+  const [passwordChanged] = useState(
+    () => Boolean((location.state as { passwordChanged?: boolean } | null)?.passwordChanged) || consumePasswordChangedFlag(),
+  )
+  const [accountTerminated] = useState(
+    () =>
+      Boolean((location.state as { accountTerminated?: boolean } | null)?.accountTerminated) ||
+      consumeAccountTerminatedFlag(),
   )
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -40,6 +48,16 @@ export function Login() {
         {sessionExpired && (
           <p className="mb-4 rounded-md bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-sm px-3 py-2">
             Your session has expired. Please log in again.
+          </p>
+        )}
+        {passwordChanged && (
+          <p className="mb-4 rounded-md bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-sm px-3 py-2">
+            Password updated. Please log in again.
+          </p>
+        )}
+        {accountTerminated && (
+          <p className="mb-4 rounded-md bg-slate-100 dark:bg-slate-700/40 text-slate-700 dark:text-slate-300 text-sm px-3 py-2">
+            Your account has been terminated.
           </p>
         )}
         <form onSubmit={handleSubmit} className="space-y-4">

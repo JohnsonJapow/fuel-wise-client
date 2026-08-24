@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bookmark, List, MapIcon, Route as RouteIcon } from 'lucide-react'
+import { Bookmark, List, MapIcon, Route as RouteIcon, Settings } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { MapView } from '../components/MapView'
 import { Sidebar } from '../components/Sidebar'
 import { SavedTrips } from '../components/SavedTrips'
+import { AccountSettings } from '../components/AccountSettings'
 import {
   ApiError,
   deleteSavedRoute,
@@ -75,6 +76,7 @@ export function Dashboard() {
 
   const [mobileView, setMobileView] = useState<'sidebar' | 'map'>('sidebar')
   const [sidebarView, setSidebarView] = useState<'planner' | 'saved'>('planner')
+  const [accountSettingsOpen, setAccountSettingsOpen] = useState(false)
 
   const origin: LatLng | null = useMemo(() => {
     const lat = parseCoord(originLat)
@@ -358,6 +360,14 @@ export function Dashboard() {
             >
               <Bookmark size={16} /> Saved Trips
             </button>
+            <button
+              type="button"
+              onClick={() => setAccountSettingsOpen(true)}
+              title="Account Settings"
+              className="flex items-center justify-center px-4 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:text-slate-400 border-l border-slate-200 dark:border-slate-800"
+            >
+              <Settings size={16} />
+            </button>
           </div>
           <div className="flex-1 min-h-0">
             {sidebarView === 'planner' ? (
@@ -439,6 +449,8 @@ export function Dashboard() {
           selectedPlanIndex={selectedPlanIndex}
         />
       </div>
+
+      {accountSettingsOpen && <AccountSettings onClose={() => setAccountSettingsOpen(false)} />}
     </div>
   )
 }

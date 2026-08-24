@@ -35,6 +35,27 @@ export interface UpdateProfileInput {
 
 export type UpdateProfileResponse = UserProfile
 
+export interface UpdatePasswordInput {
+  currentPassword: string
+  newPassword: string
+}
+
+export type UpdatePasswordResponse = UserProfile
+
+export interface UpdateEmailInput {
+  newEmail: string
+  currentPassword: string
+}
+
+export interface UpdateEmailResponse {
+  token: string
+  user: UserProfile
+}
+
+export interface TerminateAccountInput {
+  currentPassword: string
+}
+
 export interface AuthContextValue {
   user: UserProfile | null
   token: string | null
@@ -44,4 +65,7 @@ export interface AuthContextValue {
   login: (input: LoginInput) => Promise<void>
   logout: (reason?: 'expired') => void
   updateProfile: (updates: UpdateProfileInput) => Promise<void>
+  changePassword: (input: UpdatePasswordInput) => Promise<void>
+  changeEmail: (input: UpdateEmailInput) => Promise<void>
+  terminateAccount: (input: TerminateAccountInput) => Promise<void>
 }
