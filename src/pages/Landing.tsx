@@ -1,6 +1,9 @@
 import { Link } from 'react-router-dom'
-import { Fuel, Gauge, MapPin, Navigation, Route as RouteIcon, Scale, TrendingDown } from 'lucide-react'
+import { ExternalLink, Fuel, Gauge, Mail, MapPin, Navigation, Route as RouteIcon, Scale, TrendingDown } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+
+const CONTACT_EMAIL = 'yuehmingteng@gmail.com'
+const LINKEDIN_URL = 'https://www.linkedin.com/in/yuehming-teng-6a20651b0/'
 
 const STEPS = [
   {
@@ -195,6 +198,33 @@ export function Landing() {
               Create a free account
             </Link>
           )}
+        </section>
+        {/* Contact */}
+        <section className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+          <div className="max-w-3xl mx-auto px-6 py-16 text-center">
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mb-3">Get in touch</h2>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-8">
+              Questions, feedback, or just want to connect? Reach out below.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <a
+                href={`mailto:${CONTACT_EMAIL}`}
+                className="inline-flex items-center gap-2 rounded-md border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 font-medium px-5 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+              >
+                <Mail size={18} className="text-emerald-600" />
+                {CONTACT_EMAIL}
+              </a>
+              <a
+                href={LINKEDIN_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-md border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 font-medium px-5 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+              >
+                <ExternalLink size={18} className="text-emerald-600" />
+                LinkedIn
+              </a>
+            </div>
+          </div>
         </section>
       </main>
 
