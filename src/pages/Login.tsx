@@ -7,7 +7,6 @@ export function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const justRegistered = (location.state as { registered?: boolean } | null)?.registered
   // location.state can be lost if ProtectedRoute's own redirect races the caller's navigate(),
   // so also fall back to the sessionStorage flag set by AuthContext.logout('expired').
   const [sessionExpired] = useState(
@@ -40,11 +39,6 @@ export function Login() {
     <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-900 px-4">
       <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-xl shadow-lg p-8">
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-white mb-6">Log in to FuelWise</h1>
-        {justRegistered && (
-          <p className="mb-4 rounded-md bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-sm px-3 py-2">
-            Account created successfully. Please log in.
-          </p>
-        )}
         {sessionExpired && (
           <p className="mb-4 rounded-md bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-sm px-3 py-2">
             Your session has expired. Please log in again.

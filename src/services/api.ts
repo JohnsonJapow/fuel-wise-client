@@ -19,6 +19,8 @@ import type {
   UpdatePasswordResponse,
   UpdateProfileInput,
   UpdateProfileResponse,
+  VerifyEmailInput,
+  VerifyEmailResponse,
 } from '../types/auth'
 import { getStoredToken } from '../utils/authStorage'
 import { NO_PLAN_REASON_MESSAGES } from '../utils/routeAdvice'
@@ -166,6 +168,17 @@ export async function registerUser(input: RegisterInput): Promise<RegisterRespon
     }),
   })
   return handleResponse<RegisterResponse>(res)
+}
+
+export async function verifyEmail(input: VerifyEmailInput): Promise<VerifyEmailResponse> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/auth/verification/email`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return handleResponse<VerifyEmailResponse>(res, {
+    400: 'This verification link is invalid or has expired.',
+  })
 }
 
 export async function loginUser(input: LoginInput): Promise<LoginResponse> {

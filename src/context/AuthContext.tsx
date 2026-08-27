@@ -16,6 +16,7 @@ import {
   updateEmail as updateEmailApi,
   updatePassword as updatePasswordApi,
   updateProfile as updateProfileApi,
+  verifyEmail as verifyEmailApi,
 } from '../services/api'
 import {
   clearStoredAuth,
@@ -53,6 +54,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function login(input: LoginInput) {
     const { token: newToken, user: profile } = await loginUser(input)
+    setStoredAuth(newToken, profile)
+    setToken(newToken)
+    setUser(profile)
+  }
+
+  // Activates the account (UNVERIFIED -> ACTIVE) and logs the user in with the returned JWT,
+  // same as a successful login.
+  async function verifyEmail(token: string) {
+    const { token: newToken, user: profile } = await verifyEmailApi({ token })
     setStoredAuth(newToken, profile)
     setToken(newToken)
     setUser(profile)
@@ -109,6 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     changePassword,
     changeEmail,
     terminateAccount,
+    verifyEmail,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

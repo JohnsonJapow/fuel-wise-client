@@ -27,6 +27,12 @@ export interface LoginResponse {
   user: UserProfile
 }
 
+export interface VerifyEmailInput {
+  token: string
+}
+
+export type VerifyEmailResponse = LoginResponse
+
 export interface UpdateProfileInput {
   vehicleType: string
   fuelEfficiency: number
@@ -68,4 +74,5 @@ export interface AuthContextValue {
   changePassword: (input: UpdatePasswordInput) => Promise<void>
   changeEmail: (input: UpdateEmailInput) => Promise<void>
   terminateAccount: (input: TerminateAccountInput) => Promise<void>
+  verifyEmail: (token: string) => Promise<void>
 }

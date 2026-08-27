@@ -1,10 +1,9 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 export function Register() {
   const { register } = useAuth()
-  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -12,6 +11,7 @@ export function Register() {
   const [fuelEfficiency, setFuelEfficiency] = useState('')
   const [tankCapacity, setTankCapacity] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [submittedEmail, setSubmittedEmail] = useState<string | null>(null)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -25,10 +25,31 @@ export function Register() {
         fuelEfficiency: Number(fuelEfficiency),
         tankCapacity: Number(tankCapacity),
       })
-      navigate('/login', { state: { registered: true } })
+      // The account is created UNVERIFIED and can't log in yet — the backend emails a
+      // verify-email link that activates it (see VerifyEmail page), so send the user there
+      // instead of straight to /login.
+      setSubmittedEmail(email)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed')
     }
+  }
+
+  if (submittedEmail) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-900 px-4">
+        <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-xl shadow-lg p-8 text-center">
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-white mb-4">Check your email</h1>
+          <p className="text-slate-600 dark:text-slate-400 mb-6">
+            We sent a verification link to{' '}
+            <span className="font-medium text-slate-900 dark:text-white">{submittedEmail}</span>. Click it to
+            activate your account, then log in.
+          </p>
+          <Link to="/login" className="text-emerald-600 hover:underline text-sm">
+            Back to log in
+          </Link>
+        </div>
+      </div>
+    )
   }
 
   return (
